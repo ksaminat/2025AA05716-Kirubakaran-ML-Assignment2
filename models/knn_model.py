@@ -1,4 +1,5 @@
 import pickle
+import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
@@ -43,6 +44,21 @@ class KNNModel:
         X_scaled = self.scaler.transform(X)
 
         return self.model.predict(X_scaled)
+    
+    # ----------------------------
+    # PREDICT PROBABILITY (REQUIRED FOR AUC)
+    # ----------------------------
+    def predict_proba(self, X):
+
+        # ensure numpy array
+        if not isinstance(X, np.ndarray):
+            X = np.array(X)
+
+        X_scaled = self.scaler.transform(X)
+
+        probabilities = self.model.predict_proba(X_scaled)
+
+        return probabilities
 
 
     def save(self):

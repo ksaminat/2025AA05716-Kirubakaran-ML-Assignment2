@@ -1,4 +1,5 @@
 import pickle
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 
@@ -35,6 +36,18 @@ class RandomForestModel:
 
         return self.model.predict(X)
 
+    # ----------------------------
+    # PREDICT PROBABILITY (REQUIRED FOR AUC)
+    # ----------------------------
+    def predict_proba(self, X):
+
+        # ensure numpy array
+        if not isinstance(X, np.ndarray):
+            X = np.array(X)
+
+        probabilities = self.model.predict_proba(X)
+
+        return probabilities
 
     def save(self):
 

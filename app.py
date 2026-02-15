@@ -2,6 +2,16 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# sklearn metrics
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    matthews_corrcoef,
+    roc_auc_score
+)
+
 # Import models
 from models.logistic_regression_model import LogisticModel
 from models.decision_tree_model import DecisionTreeModel
@@ -25,12 +35,11 @@ st.set_page_config(
 )
 
 st.title("🩺 Diabetes Prediction Dashboard")
-
 st.write("Choose default dataset OR upload your own dataset.")
 
 
 # ----------------------------
-# LOAD DEFAULT TEST DATASET
+# LOAD DEFAULT DATASET
 # ----------------------------
 
 @st.cache_data
@@ -42,7 +51,7 @@ def load_default_dataset():
 
 
 # ----------------------------
-# DATASET SELECTION OPTION
+# DATASET SELECTION
 # ----------------------------
 
 dataset_option = st.radio(
@@ -52,17 +61,21 @@ dataset_option = st.radio(
 
 
 # ----------------------------
-# INITIALIZE SESSION STATE
+# SESSION STATE INIT
 # ----------------------------
 
 if "X_test" not in st.session_state:
     st.session_state.X_test = None
+
+if "y_test" not in st.session_state:
     st.session_state.y_test = None
+
+if "dataset_name" not in st.session_state:
     st.session_state.dataset_name = None
 
 
 # ----------------------------
-# HANDLE DEFAULT DATASET
+# DEFAULT DATASET
 # ----------------------------
 
 if dataset_option == "Use Default Dataset":
@@ -77,13 +90,13 @@ if dataset_option == "Use Default Dataset":
 
 
 # ----------------------------
-# HANDLE UPLOADED DATASET
+# UPLOAD DATASET
 # ----------------------------
 
 elif dataset_option == "Upload Dataset":
 
     uploaded_file = st.file_uploader(
-        "Upload CSV",
+        "Upload CSV with Outcome column",
         type=["csv"]
     )
 
@@ -91,21 +104,19 @@ elif dataset_option == "Upload Dataset":
 
         df_uploaded = pd.read_csv(uploaded_file)
 
-        if "Outcome" in df_uploaded.columns:
+        if "Outcome" not in df_uploaded.columns:
 
-            st.session_state.X_test = df_uploaded.drop("Outcome", axis=1)
-            st.session_state.y_test = df_uploaded["Outcome"]
+            st.error("Dataset must contain 'Outcome' column")
+            st.stop()
 
-            st.session_state.dataset_name = "Uploaded Dataset (with Outcome)"
+        y_uploaded = df_uploaded["Outcome"]
+        X_uploaded = df_uploaded.drop("Outcome", axis=1)
 
-        else:
+        st.session_state.X_test = X_uploaded
+        st.session_state.y_test = y_uploaded
+        st.session_state.dataset_name = "Uploaded Dataset"
 
-            st.session_state.X_test = df_uploaded
-            st.session_state.y_test = None
-
-            st.session_state.dataset_name = "Uploaded Dataset (prediction only)"
-
-        st.success("Uploaded dataset loaded successfully")
+        st.success("Dataset uploaded successfully")
 
 
 # ----------------------------
@@ -151,33 +162,63 @@ model_name = st.selectbox(
 
 st.success(f"Model being used: {model_name}")
 
-if st.session_state.dataset_name is not None:
+if st.session_state.dataset_name:
     st.info(f"Dataset being used: {st.session_state.dataset_name}")
 
 
 # ----------------------------
-# LOAD MODEL
+# LOAD SELECTED MODEL
 # ----------------------------
 
 model = load_model(model_name)
 
 
 # ----------------------------
-# EVALUATION
+# EVALUATION METRICS
 # ----------------------------
 
-if st.session_state.y_test is not None:
+if (
+    st.session_state.X_test is not None and
+    st.session_state.y_test is not None
+):
 
-    accuracy = model.evaluate(
-        st.session_state.X_test,
-        st.session_state.y_test
-    )
+    X = st.session_state.X_test
+    y_true = st.session_state.y_test
 
-    st.info(f"{model_name} Accuracy: {accuracy:.4f}")
+    y_pred = model.predict(X)
+
+    # AUC
+    try:
+        y_prob = model.predict_proba(X)[:, 1]
+        auc = roc_auc_score(y_true, y_prob)
+    except:
+        auc = None
+
+    accuracy = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    mcc = matthews_corrcoef(y_true, y_pred)
+
+    st.subheader("Model Performance Metrics")
+
+    col1, col2, col3 = st.columns(3)
+    col4, col5, col6 = st.columns(3)
+
+    col1.metric("Accuracy", f"{accuracy:.4f}")
+    col2.metric("Precision", f"{precision:.4f}")
+    col3.metric("Recall", f"{recall:.4f}")
+    col4.metric("F1 Score", f"{f1:.4f}")
+    col5.metric("MCC", f"{mcc:.4f}")
+
+    if auc:
+        col6.metric("AUC", f"{auc:.4f}")
+    else:
+        col6.metric("AUC", "Not Available")
 
 
 # ----------------------------
-# PREDICTION
+# PREDICTIONS
 # ----------------------------
 
 if st.session_state.X_test is not None:
@@ -192,30 +233,26 @@ if st.session_state.X_test is not None:
 
         result_df["Prediction"] = predictions
 
+        if st.session_state.y_test is not None:
+            result_df["Actual"] = st.session_state.y_test.values
 
         try:
-
             prob = model.predict_proba(st.session_state.X_test)
-
             result_df["Probability_No_Diabetes"] = prob[:, 0]
             result_df["Probability_Diabetes"] = prob[:, 1]
-
         except:
             pass
 
-
         st.dataframe(result_df)
-
 
         csv = result_df.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            label="Download Predictions CSV",
-            data=csv,
-            file_name="predictions.csv",
-            mime="text/csv"
+            "Download Predictions CSV",
+            csv,
+            "predictions.csv",
+            "text/csv"
         )
-
 
     except Exception as e:
 
@@ -223,7 +260,7 @@ if st.session_state.X_test is not None:
 
 
 # ----------------------------
-# OPTIONAL MODEL COMPARISON
+# MODEL COMPARISON
 # ----------------------------
 
 if (
@@ -231,34 +268,45 @@ if (
     and st.session_state.y_test is not None
 ):
 
-    results = {}
+    st.subheader("All Models Comparison")
+
+    X = st.session_state.X_test
+    y_true = st.session_state.y_test
+
+    results = []
 
     for name, model_obj in get_models().items():
 
         model_obj.load()
 
-        acc = model_obj.evaluate(
-            st.session_state.X_test,
-            st.session_state.y_test
-        )
+        y_pred = model_obj.predict(X)
 
-        results[name] = acc
+        try:
+            y_prob = model_obj.predict_proba(X)[:, 1]
+            auc = roc_auc_score(y_true, y_prob)
+        except:
+            auc = None
 
+        results.append({
 
-    accuracy_df = pd.DataFrame(
-        results.items(),
-        columns=["Model", "Accuracy"]
-    )
+            "Model": name,
+            "Accuracy": accuracy_score(y_true, y_pred),
+            "Precision": precision_score(y_true, y_pred),
+            "Recall": recall_score(y_true, y_pred),
+            "F1": f1_score(y_true, y_pred),
+            "MCC": matthews_corrcoef(y_true, y_pred),
+            "AUC": auc
 
-    st.dataframe(accuracy_df)
+        })
 
+    results_df = pd.DataFrame(results)
 
+    st.dataframe(results_df)
+
+    # Plot Accuracy
     fig, ax = plt.subplots()
 
-    ax.bar(
-        accuracy_df["Model"],
-        accuracy_df["Accuracy"]
-    )
+    ax.bar(results_df["Model"], results_df["Accuracy"])
 
     ax.set_ylabel("Accuracy")
     ax.set_title("Model Accuracy Comparison")

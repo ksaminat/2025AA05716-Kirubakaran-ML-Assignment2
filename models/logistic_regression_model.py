@@ -106,6 +106,21 @@ class LogisticModel:
         print("Predictions saved to:", output_csv)
 
         return df
+    
+    # PREDICT PROBABILITIES (REQUIRED FOR AUC)
+    def predict_proba(self, X):
+
+        # convert to numpy if needed
+        if not isinstance(X, np.ndarray):
+            X = np.array(X)
+
+        # scale input
+        X_scaled = self.scaler.transform(X)
+
+        # get probabilities
+        probabilities = self.model.predict_proba(X_scaled)
+
+        return probabilities
 
 
     # SAVE MODEL
