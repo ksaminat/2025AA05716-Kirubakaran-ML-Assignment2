@@ -1,3 +1,39 @@
+# 🩺 Diabetes Prediction Dashboard
+
+## a. Problem Statement
+
+Diabetes is a chronic medical condition that affects millions of people worldwide. Early detection and prediction of diabetes can help in timely medical intervention and reduce health risks.
+
+The objective of this project is to develop a Machine Learning-based web application that predicts whether a person is likely to have diabetes based on medical and physiological input features.
+
+This system uses multiple classification models such as Logistic Regression, Decision Tree, KNN, Naive Bayes, Random Forest, and XGBoost to:
+
+- Predict diabetes outcome
+- Evaluate and compare model performance
+- Provide visualization using Confusion Matrix and ROC Curve
+- Allow users to upload their own dataset for prediction
+
+The application is deployed using Streamlit to provide an interactive user interface.
+
+---
+
+
+## b. Dataset Description
+
+The dataset used in this project is a diabetes health indicators dataset containing medical, lifestyle, and demographic information used to predict whether a person has diabetes.
+
+### Dataset Overview
+
+- Number of records (samples): 4000  
+- Number of features: 19 input features + 1 target variable  
+- Target variable: Outcome  
+  - 0 → No Diabetes  
+  - 1 → Diabetes  
+
+The features represent medical conditions, lifestyle factors, and demographic information such as BMI, blood pressure, cholesterol, physical activity, and age. The target variable Outcome indicates whether a person has diabetes (1) or not (0).
+
+---
+
 # ML Model Performance Report
 
 ## Model Performance Metrics
