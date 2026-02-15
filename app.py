@@ -95,8 +95,11 @@ if uploaded_file is None:
 df = pd.read_csv(uploaded_file)
 
 if "Outcome" not in df.columns:
-
     st.error("Dataset must contain 'Outcome' column")
+    st.markdown("""
+        ⚠️ **Please upload a dataset with target column named 'Outcome'.**
+        Outcome won't be used for prediction, but it will be used for evaluation.
+        """)
     st.stop()
 
 
