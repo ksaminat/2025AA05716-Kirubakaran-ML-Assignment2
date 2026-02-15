@@ -9,7 +9,10 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     matthews_corrcoef,
-    roc_auc_score
+    roc_auc_score,
+    roc_curve,
+    confusion_matrix,
+    ConfusionMatrixDisplay
 )
 
 # Import models
@@ -35,7 +38,8 @@ st.set_page_config(
 )
 
 st.title("🩺 Diabetes Prediction Dashboard")
-st.write("Choose default dataset OR upload your own dataset.")
+
+st.write("Upload dataset or use default dataset")
 
 
 # ----------------------------
@@ -55,13 +59,13 @@ def load_default_dataset():
 # ----------------------------
 
 dataset_option = st.radio(
-    "Select Dataset Option",
+    "Dataset Option",
     ("Use Default Dataset", "Upload Dataset")
 )
 
 
 # ----------------------------
-# SESSION STATE INIT
+# SESSION STATE
 # ----------------------------
 
 if "X_test" not in st.session_state:
@@ -80,13 +84,13 @@ if "dataset_name" not in st.session_state:
 
 if dataset_option == "Use Default Dataset":
 
-    X_test_default, y_test_default = load_default_dataset()
+    X_test, y_test = load_default_dataset()
 
-    st.session_state.X_test = X_test_default
-    st.session_state.y_test = y_test_default
-    st.session_state.dataset_name = "Default Test Dataset"
+    st.session_state.X_test = X_test
+    st.session_state.y_test = y_test
+    st.session_state.dataset_name = "Default Dataset"
 
-    st.success("Using Default Dataset")
+    st.success("Default dataset loaded")
 
 
 # ----------------------------
@@ -100,20 +104,22 @@ elif dataset_option == "Upload Dataset":
         type=["csv"]
     )
 
-    if uploaded_file is not None:
+    if uploaded_file:
 
-        df_uploaded = pd.read_csv(uploaded_file)
+        df = pd.read_csv(uploaded_file)
 
-        if "Outcome" not in df_uploaded.columns:
+        if "Outcome" not in df.columns:
 
-            st.error("Dataset must contain 'Outcome' column")
+            st.error("Dataset must contain Outcome column")
             st.stop()
 
-        y_uploaded = df_uploaded["Outcome"]
-        X_uploaded = df_uploaded.drop("Outcome", axis=1)
+        st.session_state.y_test = df["Outcome"]
 
-        st.session_state.X_test = X_uploaded
-        st.session_state.y_test = y_uploaded
+        st.session_state.X_test = df.drop(
+            "Outcome",
+            axis=1
+        )
+
         st.session_state.dataset_name = "Uploaded Dataset"
 
         st.success("Dataset uploaded successfully")
@@ -142,9 +148,9 @@ def get_models():
 # ----------------------------
 
 @st.cache_resource
-def load_model(model_name):
+def load_model(name):
 
-    model = get_models()[model_name]
+    model = get_models()[name]
 
     model.load()
 
@@ -160,55 +166,58 @@ model_name = st.selectbox(
     list(get_models().keys())
 )
 
-st.success(f"Model being used: {model_name}")
-
-if st.session_state.dataset_name:
-    st.info(f"Dataset being used: {st.session_state.dataset_name}")
-
-
-# ----------------------------
-# LOAD SELECTED MODEL
-# ----------------------------
-
 model = load_model(model_name)
 
+st.success(f"Model: {model_name}")
+
+if st.session_state.dataset_name:
+    st.info(f"Dataset: {st.session_state.dataset_name}")
+
 
 # ----------------------------
-# EVALUATION METRICS
+# METRICS
 # ----------------------------
 
-if (
-    st.session_state.X_test is not None and
-    st.session_state.y_test is not None
-):
+if st.session_state.X_test is not None:
 
     X = st.session_state.X_test
     y_true = st.session_state.y_test
 
     y_pred = model.predict(X)
 
-    # AUC
     try:
         y_prob = model.predict_proba(X)[:, 1]
         auc = roc_auc_score(y_true, y_prob)
     except:
+        y_prob = None
         auc = None
 
+
     accuracy = accuracy_score(y_true, y_pred)
+
     precision = precision_score(y_true, y_pred)
+
     recall = recall_score(y_true, y_pred)
+
     f1 = f1_score(y_true, y_pred)
+
     mcc = matthews_corrcoef(y_true, y_pred)
 
-    st.subheader("Model Performance Metrics")
+
+    st.subheader("Performance Metrics")
 
     col1, col2, col3 = st.columns(3)
+
     col4, col5, col6 = st.columns(3)
 
     col1.metric("Accuracy", f"{accuracy:.4f}")
+
     col2.metric("Precision", f"{precision:.4f}")
+
     col3.metric("Recall", f"{recall:.4f}")
+
     col4.metric("F1 Score", f"{f1:.4f}")
+
     col5.metric("MCC", f"{mcc:.4f}")
 
     if auc:
@@ -218,99 +227,137 @@ if (
 
 
 # ----------------------------
-# PREDICTIONS
+# ROC CURVE
 # ----------------------------
 
-if st.session_state.X_test is not None:
+if y_prob is not None:
 
-    st.subheader("Prediction Results")
+    st.subheader("ROC Curve")
 
-    try:
+    fpr, tpr, _ = roc_curve(y_true, y_prob)
 
-        predictions = model.predict(st.session_state.X_test)
+    fig, ax = plt.subplots()
 
-        result_df = st.session_state.X_test.copy()
+    ax.plot(fpr, tpr)
 
-        result_df["Prediction"] = predictions
+    ax.plot([0, 1], [0, 1], linestyle="--")
 
-        if st.session_state.y_test is not None:
-            result_df["Actual"] = st.session_state.y_test.values
+    ax.set_xlabel("False Positive Rate")
 
-        try:
-            prob = model.predict_proba(st.session_state.X_test)
-            result_df["Probability_No_Diabetes"] = prob[:, 0]
-            result_df["Probability_Diabetes"] = prob[:, 1]
-        except:
-            pass
+    ax.set_ylabel("True Positive Rate")
 
-        st.dataframe(result_df)
+    ax.set_title("ROC Curve")
 
-        csv = result_df.to_csv(index=False).encode("utf-8")
+    st.pyplot(fig)
 
-        st.download_button(
-            "Download Predictions CSV",
-            csv,
-            "predictions.csv",
-            "text/csv"
-        )
 
-    except Exception as e:
+# ----------------------------
+# CONFUSION MATRIX
+# ----------------------------
 
-        st.error(f"Prediction Error: {e}")
+st.subheader("Confusion Matrix")
+
+cm = confusion_matrix(y_true, y_pred)
+
+fig, ax = plt.subplots()
+
+disp = ConfusionMatrixDisplay(
+    confusion_matrix=cm,
+    display_labels=["No Diabetes", "Diabetes"]
+)
+
+disp.plot(ax=ax)
+
+st.pyplot(fig)
+
+
+# ----------------------------
+# PREDICTIONS TABLE
+# ----------------------------
+
+st.subheader("Predictions")
+
+result_df = X.copy()
+
+result_df["Prediction"] = y_pred
+
+result_df["Actual"] = y_true.values
+
+if y_prob is not None:
+
+    result_df["Probability_No"] = model.predict_proba(X)[:, 0]
+
+    result_df["Probability_Yes"] = model.predict_proba(X)[:, 1]
+
+st.dataframe(result_df)
+
+
+# ----------------------------
+# DOWNLOAD RESULTS
+# ----------------------------
+
+csv = result_df.to_csv(index=False).encode("utf-8")
+
+st.download_button(
+
+    "Download Predictions",
+
+    csv,
+
+    "predictions.csv",
+
+    "text/csv"
+)
 
 
 # ----------------------------
 # MODEL COMPARISON
 # ----------------------------
 
-if (
-    st.checkbox("Show Accuracy Comparison of All Models")
-    and st.session_state.y_test is not None
-):
-
-    st.subheader("All Models Comparison")
-
-    X = st.session_state.X_test
-    y_true = st.session_state.y_test
+if st.checkbox("Compare All Models"):
 
     results = []
 
-    for name, model_obj in get_models().items():
+    for name, m in get_models().items():
 
-        model_obj.load()
+        m.load()
 
-        y_pred = model_obj.predict(X)
+        pred = m.predict(X)
 
         try:
-            y_prob = model_obj.predict_proba(X)[:, 1]
-            auc = roc_auc_score(y_true, y_prob)
+            prob = m.predict_proba(X)[:, 1]
+            auc_val = roc_auc_score(y_true, prob)
         except:
-            auc = None
+            auc_val = None
 
         results.append({
 
             "Model": name,
-            "Accuracy": accuracy_score(y_true, y_pred),
-            "Precision": precision_score(y_true, y_pred),
-            "Recall": recall_score(y_true, y_pred),
-            "F1": f1_score(y_true, y_pred),
-            "MCC": matthews_corrcoef(y_true, y_pred),
-            "AUC": auc
+
+            "Accuracy": accuracy_score(y_true, pred),
+
+            "Precision": precision_score(y_true, pred),
+
+            "Recall": recall_score(y_true, pred),
+
+            "F1": f1_score(y_true, pred),
+
+            "MCC": matthews_corrcoef(y_true, pred),
+
+            "AUC": auc_val
 
         })
 
-    results_df = pd.DataFrame(results)
+    df_results = pd.DataFrame(results)
 
-    st.dataframe(results_df)
+    st.dataframe(df_results)
 
-    # Plot Accuracy
     fig, ax = plt.subplots()
 
-    ax.bar(results_df["Model"], results_df["Accuracy"])
-
-    ax.set_ylabel("Accuracy")
-    ax.set_title("Model Accuracy Comparison")
+    ax.bar(df_results["Model"], df_results["Accuracy"])
 
     plt.xticks(rotation=45)
+
+    ax.set_title("Accuracy Comparison")
 
     st.pyplot(fig)

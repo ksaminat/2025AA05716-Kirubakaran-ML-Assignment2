@@ -5,8 +5,6 @@ from sklearn.model_selection import train_test_split
 import config
 
 
-DATA_URL = "https://raw.githubusercontent.com/plotly/datasets/master/diabetes.csv"
-
 
 def load_data():
     """

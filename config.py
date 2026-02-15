@@ -1,6 +1,6 @@
 # config.py
 
-DATA_URL = "https://raw.githubusercontent.com/plotly/datasets/master/diabetes.csv"
+DATA_URL = "./data/diabetes_train.csv"
 
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
